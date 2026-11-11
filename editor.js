@@ -419,7 +419,8 @@ async function downloadEdited() {
     const response = await chrome.runtime.sendMessage({
       type: 'EDITOR_DOWNLOAD',
       sessionId,
-      dataUrl
+      dataUrl,
+      meta: sessionMeta
     });
     if (!response?.ok) {
       throw new Error(response?.error || '下载失败');

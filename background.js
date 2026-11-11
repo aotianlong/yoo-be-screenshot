@@ -16,12 +16,17 @@ function editSessionKey(sessionId) {
   return `yoo-edit:${sessionId}`;
 }
 
+function getSessionStorageArea() {
+  return chrome.storage?.session ?? null;
+}
+
 function pruneEditSessions() {
   const now = Date.now();
+  const session = getSessionStorageArea();
   for (const [id, entry] of editSessions) {
     if (now - (entry.createdAt || 0) > EDIT_SESSION_TTL_MS) {
       editSessions.delete(id);
-      chrome.storage.session.remove(editSessionKey(id)).catch(() => {});
+      session?.remove(editSessionKey(id)).catch(() => {});
     }
   }
 }
@@ -29,8 +34,12 @@ function pruneEditSessions() {
 async function storeEditSession(sessionId, dataUrl, meta) {
   const payload = { dataUrl, meta, createdAt: Date.now() };
   editSessions.set(sessionId, payload);
+  const session = getSessionStorageArea();
+  if (!session) {
+    return;
+  }
   try {
-    await chrome.storage.session.set({ [editSessionKey(sessionId)]: payload });
+    await session.set({ [editSessionKey(sessionId)]: payload });
   } catch (err) {
     console.warn('[yoo-be-screenshot] session storage unavailable, using memory only', err);
   }
@@ -42,7 +51,11 @@ async function getEditSession(sessionId) {
   if (mem) {
     return mem;
   }
-  const stored = await chrome.storage.session.get(editSessionKey(sessionId));
+  const session = getSessionStorageArea();
+  if (!session) {
+    return null;
+  }
+  const stored = await session.get(editSessionKey(sessionId));
   const entry = stored[editSessionKey(sessionId)];
   if (entry) {
     editSessions.set(sessionId, entry);
@@ -53,7 +66,8 @@ async function getEditSession(sessionId) {
 
 async function removeEditSession(sessionId) {
   editSessions.delete(sessionId);
-  await chrome.storage.session.remove(editSessionKey(sessionId)).catch(() => {});
+  const session = getSessionStorageArea();
+  await session?.remove(editSessionKey(sessionId)).catch(() => {});
 }
 
 async function openEditorTab(dataUrl, meta) {
@@ -280,7 +294,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message?.type === 'EDITOR_DOWNLOAD') {
-    finishEditorDownload(message.sessionId, message.dataUrl)
+    finishEditorDownload(message.sessionId, message.dataUrl, message.meta)
       .then(() => sendResponse({ ok: true }))
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
@@ -468,12 +482,13 @@ async function saveImage(dataUrl, { addUrl, pageUrl, pageTitle, mode, imageForma
   });
 }
 
-async function finishEditorDownload(sessionId, dataUrl) {
+async function finishEditorDownload(sessionId, dataUrl, metaFromEditor) {
   const entry = await getEditSession(sessionId);
-  if (!entry?.meta) {
-    throw new Error('编辑会话已过期');
+  const meta = entry?.meta || metaFromEditor;
+  if (!meta) {
+    throw new Error('编辑会话已过期，请重新截图');
   }
-  const { addUrl, pageUrl, pageTitle, mode, imageFormat } = entry.meta;
+  const { addUrl, pageUrl, pageTitle, mode, imageFormat } = meta;
   const fmt = normalizeFormat(imageFormat);
   let finalUrl = dataUrl;
   if (addUrl && pageUrl) {
