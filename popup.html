@@ -11,35 +11,24 @@
       <h1 class="title">Yoo 截图</h1>
     </header>
 
-    <fieldset class="modes">
-      <legend>截图方式</legend>
-      <label class="option">
-        <input type="radio" name="mode" value="visible" checked />
-        <span>截取可视区域</span>
-      </label>
-      <label class="option">
-        <input type="radio" name="mode" value="fullpage" />
-        <span>截取整页</span>
-      </label>
-      <label class="option">
-        <input type="radio" name="mode" value="selection" />
-        <span>截取选中区域</span>
-      </label>
-    </fieldset>
+    <section class="panel">
+      <p class="panel-label">截图方式</p>
+      <div class="choice-group" id="mode-group" role="group" aria-label="截图方式">
+        <button type="button" class="choice is-active" data-mode="visible">可视区域</button>
+        <button type="button" class="choice" data-mode="fullpage">整页</button>
+        <button type="button" class="choice" data-mode="selection">选区</button>
+      </div>
+    </section>
 
-    <fieldset class="modes formats">
-      <legend>图片格式</legend>
-      <label class="option">
-        <input type="radio" name="format" value="jpg" checked />
-        <span>JPG</span>
-      </label>
-      <label class="option">
-        <input type="radio" name="format" value="png" />
-        <span>PNG</span>
-      </label>
-    </fieldset>
+    <section class="panel">
+      <p class="panel-label">图片格式</p>
+      <div class="choice-group compact" id="format-group" role="group" aria-label="图片格式">
+        <button type="button" class="choice is-active" data-format="jpg">JPG</button>
+        <button type="button" class="choice" data-format="png">PNG</button>
+      </div>
+    </section>
 
-    <label class="option checkbox-row">
+    <label class="toggle-row">
       <input type="checkbox" id="add-url" checked />
       <span>添加当前 URL</span>
     </label>

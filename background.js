@@ -225,26 +225,23 @@ async function runCapture({ tabId, mode, addUrl, pageUrl, pageTitle, imageFormat
   await injectCaptureScript(tabId);
 
   if (mode === 'fullpage') {
-    const [result] = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: (addUrl, pageUrl, fmt) => {
-        return window.__yooScreenshotRunFullPage(addUrl, pageUrl, fmt);
-      },
-      args: [addUrl, pageUrl, fmt]
+    const pageResult = await chrome.tabs.sendMessage(tabId, {
+      type: 'YOO_START_FULLPAGE',
+      addUrl,
+      pageUrl,
+      imageFormat: fmt
     });
-    if (result?.result?.error) {
-      throw new Error(result.result.error);
+    if (!pageResult?.ok) {
+      throw new Error(pageResult?.error || '整页截图失败');
     }
     return { ok: true };
   }
 
   if (mode === 'selection') {
-    const [result] = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => window.__yooScreenshotRunSelection(),
-      args: []
-    });
-    const payload = result?.result;
+    const payload = await chrome.tabs.sendMessage(tabId, { type: 'YOO_START_SELECTION' });
+    if (!payload?.ok && !payload?.cancelled) {
+      throw new Error(payload?.error || '选区截图失败');
+    }
     if (payload?.cancelled) {
       return { ok: false, error: '已取消选区' };
     }

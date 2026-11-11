@@ -7,6 +7,7 @@
   --accent: #2563eb;
   --accent-hover: #1d4ed8;
   --border: #e2e5ea;
+  --choice-bg: #eef1f6;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -16,6 +17,7 @@
     --text: #f0f1f3;
     --muted: #a0a6b0;
     --border: #3d4048;
+    --choice-bg: #363840;
   }
 }
 
@@ -27,7 +29,7 @@ body {
   margin: 0;
   width: 280px;
   padding: 14px 16px 16px;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 13px;
   line-height: 1.45;
   background: var(--bg);
@@ -44,16 +46,7 @@ body {
   font-weight: 600;
 }
 
-.formats {
-  margin-bottom: 8px;
-}
-
-.formats .option {
-  display: inline-flex;
-  margin-right: 14px;
-}
-
-.modes {
+.panel {
   margin: 0 0 10px;
   padding: 10px 12px;
   border: 1px solid var(--border);
@@ -61,23 +54,58 @@ body {
   background: var(--card);
 }
 
-.modes legend {
-  padding: 0 4px;
+.panel-label {
+  margin: 0 0 8px;
   font-size: 12px;
   color: var(--muted);
 }
 
-.option {
+.choice-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.choice-group.compact {
+  flex-direction: row;
+}
+
+.choice-group.compact .choice {
+  flex: 1;
+}
+
+.choice {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--choice-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.choice:hover {
+  border-color: var(--accent);
+}
+
+.choice.is-active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.toggle-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 6px 0;
-  cursor: pointer;
-}
-
-.checkbox-row {
-  margin-bottom: 12px;
+  margin: 0 0 12px;
   padding: 0 2px;
+  cursor: pointer;
 }
 
 .primary {

@@ -1,9 +1,4 @@
 (function () {
-  if (window.__yooScreenshotLoaded) {
-    return;
-  }
-  window.__yooScreenshotLoaded = true;
-
   function exportCanvasDataUrl(canvas, imageFormat) {
     if (imageFormat === 'png') {
       return canvas.toDataURL('image/png');
@@ -31,6 +26,17 @@
     return new Promise((r) => setTimeout(r, ms));
   }
 
+  async function scrollToAndWait(targetY) {
+    window.scrollTo(0, targetY);
+    for (let i = 0; i < 40; i++) {
+      await sleep(50);
+      if (Math.abs(window.scrollY - targetY) <= 2) {
+        break;
+      }
+    }
+    await sleep(150);
+  }
+
   async function stitchTiles(tiles, totalWidth, totalHeight, viewportWidth, viewportHeight, dpr, imageFormat) {
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(totalWidth * dpr);
@@ -44,22 +50,17 @@
         img.onerror = reject;
         img.src = tile.dataUrl;
       });
+
       const destY = Math.round(tile.scrollY * dpr);
-      const sliceHeight = Math.min(
-        Math.round(viewportHeight * dpr),
-        canvas.height - destY
-      );
-      ctx.drawImage(
-        img,
-        0,
-        0,
-        img.width,
-        sliceHeight,
-        0,
-        destY,
-        img.width,
-        sliceHeight
-      );
+      const remain = canvas.height - destY;
+      if (remain <= 0) {
+        continue;
+      }
+
+      const sliceCss = Math.min(viewportHeight, totalHeight - tile.scrollY);
+      const slicePx = Math.min(Math.round(sliceCss * dpr), remain, img.height);
+
+      ctx.drawImage(img, 0, 0, img.width, slicePx, 0, destY, img.width, slicePx);
     }
 
     return exportCanvasDataUrl(canvas, imageFormat);
@@ -91,20 +92,23 @@
 
     const tiles = [];
     let scrollY = 0;
-    const maxSteps = Math.ceil(totalHeight / viewportHeight) + 2;
+    const maxSteps = Math.max(1, Math.ceil(totalHeight / Math.max(1, viewportHeight))) + 3;
     let steps = 0;
 
     try {
-      while (scrollY < totalHeight && steps < maxSteps) {
-        window.scrollTo(0, scrollY);
-        await sleep(200);
+      while (scrollY < totalHeight - 1 && steps < maxSteps) {
+        await scrollToAndWait(scrollY);
         const dataUrl = await requestVisibleCapture(fmt);
-        tiles.push({ scrollY, dataUrl });
-        if (scrollY + viewportHeight >= totalHeight) {
+        tiles.push({ scrollY: window.scrollY, dataUrl });
+        if (window.scrollY + viewportHeight >= totalHeight - 1) {
           break;
         }
         scrollY += viewportHeight;
         steps += 1;
+      }
+
+      if (tiles.length === 0) {
+        throw new Error('未采集到页面分块');
       }
 
       const dataUrl = await stitchTiles(
@@ -249,4 +253,43 @@
       document.addEventListener('keydown', onKey);
     });
   };
+
+  if (window.__yooScreenshotMessageReady) {
+    return;
+  }
+  window.__yooScreenshotMessageReady = true;
+
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type === 'YOO_START_FULLPAGE') {
+      window
+        .__yooScreenshotRunFullPage(message.addUrl, message.pageUrl, message.imageFormat)
+        .then((result) => {
+          if (result?.error) {
+            sendResponse({ ok: false, error: result.error });
+            return;
+          }
+          sendResponse({ ok: true });
+        })
+        .catch((err) => sendResponse({ ok: false, error: err.message || String(err) }));
+      return true;
+    }
+
+    if (message?.type === 'YOO_START_SELECTION') {
+      window
+        .__yooScreenshotRunSelection()
+        .then((result) => {
+          if (result?.cancelled) {
+            sendResponse({ ok: false, cancelled: true });
+            return;
+          }
+          if (result?.error) {
+            sendResponse({ ok: false, error: result.error });
+            return;
+          }
+          sendResponse({ ok: true, ...result });
+        })
+        .catch((err) => sendResponse({ ok: false, error: err.message || String(err) }));
+      return true;
+    }
+  });
 })();
