@@ -12,7 +12,6 @@ const applyCropBtn = document.getElementById('apply-crop');
 const cancelCropBtn = document.getElementById('cancel-crop');
 const textPopover = document.getElementById('text-popover');
 const textInput = document.getElementById('text-input');
-const dragHandle = document.getElementById('drag-handle');
 
 const MAX_HISTORY = 40;
 
@@ -29,9 +28,6 @@ let cropRect = null;
 let cropDrag = null;
 
 let pendingText = null;
-/** @type {File | null} */
-let cachedDragFile = null;
-let refreshDragTimer = null;
 
 const params = new URLSearchParams(location.search);
 const sessionId = params.get('session');
@@ -54,7 +50,6 @@ function setTool(tool) {
   } else {
     hideTextPopover();
   }
-  canvas.draggable = tool === 'pointer';
 }
 
 function updateHistoryButtons() {
@@ -109,64 +104,8 @@ async function snapshotFromCanvas() {
   return canvas.toDataURL(mime, quality);
 }
 
-function dragFileName() {
-  const { ext } = exportMimeOptions();
-  return sessionMeta?.downloadFilename || `yoo-screenshot.${ext}`;
-}
-
-async function refreshDragFile() {
-  if (!canvas.width) {
-    cachedDragFile = null;
-    return;
-  }
-  const { mime, quality } = exportMimeOptions();
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, mime, quality));
-  if (!blob) {
-    cachedDragFile = null;
-    return;
-  }
-  cachedDragFile = new File([blob], dragFileName(), { type: blob.type });
-}
-
-function scheduleRefreshDragFile() {
-  clearTimeout(refreshDragTimer);
-  refreshDragTimer = setTimeout(() => {
-    refreshDragFile().catch(() => {});
-  }, 120);
-}
-
-function attachFileToDataTransfer(event) {
-  if (!cachedDragFile) {
-    event.preventDefault();
-    return;
-  }
-  event.dataTransfer.effectAllowed = 'copy';
-  event.dataTransfer.dropEffect = 'copy';
-  event.dataTransfer.items.clear();
-  event.dataTransfer.items.add(cachedDragFile);
-  event.dataTransfer.setData('text/plain', cachedDragFile.name);
-  const anchorX = Math.min(48, Math.max(16, canvas.clientWidth * 0.2));
-  const anchorY = Math.min(48, Math.max(16, canvas.clientHeight * 0.2));
-  if (canvas.width > 0) {
-    event.dataTransfer.setDragImage(canvas, anchorX, anchorY);
-  }
-}
-
-function onImageDragStart(event) {
-  if (currentTool !== 'pointer') {
-    event.preventDefault();
-    return;
-  }
-  attachFileToDataTransfer(event);
-}
-
-function onHandleDragStart(event) {
-  attachFileToDataTransfer(event);
-}
-
 async function commitCanvasState() {
   await pushHistory(await snapshotFromCanvas());
-  scheduleRefreshDragFile();
 }
 
 async function restoreHistory(index) {
@@ -181,7 +120,6 @@ async function restoreHistory(index) {
   if (currentTool === 'crop') {
     initCropRect();
   }
-  scheduleRefreshDragFile();
 }
 
 function canvasPointFromEvent(event) {
@@ -479,7 +417,6 @@ async function loadSession() {
     metaLabel.hidden = false;
     metaLabel.textContent = sessionMeta.pageTitle;
   }
-  await refreshDragFile();
 }
 
 async function downloadEdited() {
@@ -537,16 +474,6 @@ document.getElementById('apply-crop').addEventListener('click', () => applyCrop(
 document.getElementById('cancel-crop').addEventListener('click', () => setTool('pointer'));
 document.getElementById('download-btn').addEventListener('click', downloadEdited);
 document.getElementById('copy-btn').addEventListener('click', copyToClipboard);
-canvas.addEventListener('dragstart', onImageDragStart);
-dragHandle.addEventListener('dragstart', onHandleDragStart);
-dragHandle.addEventListener('mousedown', () => {
-  refreshDragFile().catch(() => {});
-});
-canvas.addEventListener('mousedown', () => {
-  if (currentTool === 'pointer') {
-    refreshDragFile().catch(() => {});
-  }
-});
 document.getElementById('text-confirm').addEventListener('click', () => confirmText());
 document.getElementById('text-cancel').addEventListener('click', () => hideTextPopover());
 textInput.addEventListener('keydown', (e) => {

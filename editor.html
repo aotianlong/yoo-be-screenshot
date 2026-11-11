@@ -68,19 +68,8 @@
     </div>
 
     <main class="stage" id="stage">
-      <p class="drag-tip">「选择」模式下可拖动图片；或拖右上角手柄到其他标签页的上传区域</p>
       <div class="canvas-wrap" id="canvas-wrap" hidden>
-        <canvas id="canvas" draggable="true"></canvas>
-        <span
-          class="drag-handle"
-          id="drag-handle"
-          draggable="true"
-          role="button"
-          tabindex="0"
-          title="拖到其他标签页的上传区域"
-        >
-          拖到网页上传
-        </span>
+        <canvas id="canvas"></canvas>
         <div class="crop-layer" id="crop-layer" hidden>
           <div class="crop-shade crop-shade--top" id="crop-top"></div>
           <div class="crop-shade crop-shade--left" id="crop-left"></div>
