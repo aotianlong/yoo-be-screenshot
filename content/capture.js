@@ -150,26 +150,57 @@
     }
   };
 
+  function waitForPaint() {
+    return new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => resolve());
+      });
+    });
+  }
+
   window.__yooScreenshotRunSelection = function () {
     return new Promise((resolve) => {
-      const overlay = document.createElement('div');
-      overlay.id = 'yoo-screenshot-overlay';
-      Object.assign(overlay.style, {
+      const root = document.createElement('div');
+      root.id = 'yoo-screenshot-overlay';
+      Object.assign(root.style, {
         position: 'fixed',
         inset: '0',
         zIndex: '2147483646',
+        cursor: 'crosshair'
+      });
+
+      const shadeStyle = {
+        position: 'fixed',
+        background: 'rgba(0, 0, 0, 0.35)',
+        pointerEvents: 'none',
+        zIndex: '2147483646'
+      };
+      const shadeTop = document.createElement('div');
+      const shadeLeft = document.createElement('div');
+      const shadeRight = document.createElement('div');
+      const shadeBottom = document.createElement('div');
+      [shadeTop, shadeLeft, shadeRight, shadeBottom].forEach((el) => {
+        Object.assign(el.style, shadeStyle);
+      });
+
+      const overlay = document.createElement('div');
+      Object.assign(overlay.style, {
+        position: 'fixed',
+        inset: '0',
+        zIndex: '2147483647',
         cursor: 'crosshair',
-        background: 'rgba(0,0,0,0.25)'
+        background: 'transparent'
       });
 
       const box = document.createElement('div');
       Object.assign(box.style, {
         position: 'fixed',
         border: '2px solid #2563eb',
-        background: 'rgba(37, 99, 235, 0.12)',
+        background: 'transparent',
+        boxSizing: 'border-box',
         display: 'none',
         pointerEvents: 'none',
-        zIndex: '2147483647'
+        zIndex: '2147483648'
       });
 
       const tip = document.createElement('div');
@@ -188,15 +219,23 @@
         zIndex: '2147483647'
       });
 
-      document.documentElement.append(overlay, box, tip);
+      root.append(shadeTop, shadeLeft, shadeRight, shadeBottom, overlay, box);
+      document.documentElement.append(root, tip);
 
       let startX = 0;
       let startY = 0;
       let dragging = false;
 
-      function cleanup(result) {
-        overlay.remove();
-        box.remove();
+      function hideUi() {
+        root.style.display = 'none';
+        tip.style.display = 'none';
+      }
+
+      async function cleanup(result) {
+        hideUi();
+        await waitForPaint();
+        await sleep(80);
+        root.remove();
         tip.remove();
         document.removeEventListener('keydown', onKey);
         resolve(result);
@@ -208,12 +247,37 @@
         }
       }
 
+      function layoutShades(x, y, w, h) {
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const base =
+          'position:fixed;background:rgba(0,0,0,0.35);pointer-events:none;z-index:2147483646';
+        if (w < 1 || h < 1) {
+          shadeTop.style.cssText = `${base};left:0;top:0;width:100%;height:100%`;
+          shadeLeft.style.cssText = `${base};width:0;height:0`;
+          shadeRight.style.cssText = `${base};width:0;height:0`;
+          shadeBottom.style.cssText = `${base};width:0;height:0`;
+          return;
+        }
+        shadeTop.style.cssText = `position:fixed;left:0;top:0;width:100%;height:${Math.max(0, y)}px;background:rgba(0,0,0,0.35);pointer-events:none;z-index:2147483646`;
+        shadeBottom.style.cssText = `position:fixed;left:0;top:${y + h}px;width:100%;height:${Math.max(
+          0,
+          vh - (y + h)
+        )}px;background:rgba(0,0,0,0.35);pointer-events:none;z-index:2147483646`;
+        shadeLeft.style.cssText = `position:fixed;left:0;top:${y}px;width:${Math.max(0, x)}px;height:${h}px;background:rgba(0,0,0,0.35);pointer-events:none;z-index:2147483646`;
+        shadeRight.style.cssText = `position:fixed;left:${x + w}px;top:${y}px;width:${Math.max(
+          0,
+          vw - (x + w)
+        )}px;height:${h}px;background:rgba(0,0,0,0.35);pointer-events:none;z-index:2147483646`;
+      }
+
       function setBox(x, y, w, h) {
         box.style.display = 'block';
         box.style.left = `${x}px`;
         box.style.top = `${y}px`;
         box.style.width = `${w}px`;
         box.style.height = `${h}px`;
+        layoutShades(x, y, w, h);
       }
 
       overlay.addEventListener('mousedown', (e) => {
@@ -244,13 +308,14 @@
           cleanup({ error: '选区太小' });
           return;
         }
-        cleanup({
+        void cleanup({
           rect: { x, y, width, height },
           devicePixelRatio: window.devicePixelRatio || 1
         });
       }
 
       overlay.addEventListener('mouseup', finish);
+      layoutShades(0, 0, 0, 0);
       document.addEventListener('keydown', onKey);
     });
   };
