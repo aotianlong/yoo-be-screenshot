@@ -95,25 +95,55 @@ async function ensureOffscreenDocument() {
   }
 }
 
-async function downloadViaOffscreen(dataUrl, filename) {
-  await ensureOffscreenDocument();
+function sendOffscreenMessage(message) {
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ type: 'YOO_OFFSCREEN_DOWNLOAD', dataUrl, filename }, (response) => {
+    chrome.runtime.sendMessage(message, (response) => {
       if (chrome.runtime.lastError) {
         reject(new Error(chrome.runtime.lastError.message));
         return;
       }
       if (!response?.ok) {
-        reject(new Error(response?.error || '下载失败'));
+        reject(new Error(response?.error || '离屏页处理失败'));
         return;
       }
-      resolve(response.downloadId);
+      resolve(response);
     });
   });
 }
 
+async function downloadViaOffscreen(dataUrl, filename) {
+  await ensureOffscreenDocument();
+  const { objectUrl } = await sendOffscreenMessage({ type: 'YOO_OFFSCREEN_BLOB', dataUrl });
+  try {
+    const downloadId = await new Promise((resolve, reject) => {
+      chrome.downloads.download(
+        {
+          url: objectUrl,
+          filename,
+          saveAs: false,
+          conflictAction: 'uniquify'
+        },
+        (id) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          if (id === undefined) {
+            reject(new Error('下载失败'));
+            return;
+          }
+          resolve(id);
+        }
+      );
+    });
+    return downloadId;
+  } finally {
+    sendOffscreenMessage({ type: 'YOO_OFFSCREEN_REVOKE', objectUrl }).catch(() => {});
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message?.type === 'YOO_OFFSCREEN_DOWNLOAD') {
+  if (message?.type === 'YOO_OFFSCREEN_BLOB' || message?.type === 'YOO_OFFSCREEN_REVOKE') {
     return;
   }
 
