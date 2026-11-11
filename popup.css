@@ -40,10 +40,33 @@ body {
   margin-bottom: 12px;
 }
 
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .title {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
+}
+
+.settings-link {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--accent);
+  background: transparent;
+  cursor: pointer;
+}
+
+.settings-link:hover {
+  background: var(--choice-bg);
 }
 
 .panel {

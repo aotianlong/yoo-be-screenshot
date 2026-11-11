@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Yoo 截图 · 默认设置</title>
+    <link rel="stylesheet" href="popup.css" />
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body class="options-body">
+    <header class="header">
+      <h1 class="title">默认设置</h1>
+      <p class="options-lead">打开截图弹窗时将自动使用以下选项。</p>
+    </header>
+
+    <section class="panel">
+      <p class="panel-label">默认截图方式</p>
+      <div class="choice-group" id="mode-group" role="group" aria-label="默认截图方式">
+        <button type="button" class="choice is-active" data-mode="visible">可视区域</button>
+        <button type="button" class="choice" data-mode="fullpage">整页</button>
+        <button type="button" class="choice" data-mode="selection">选区</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <p class="panel-label">默认图片格式</p>
+      <div class="choice-group compact" id="format-group" role="group" aria-label="默认图片格式">
+        <button type="button" class="choice is-active" data-format="jpg">JPG</button>
+        <button type="button" class="choice" data-format="png">PNG</button>
+      </div>
+    </section>
+
+    <label class="toggle-row">
+      <input type="checkbox" id="add-url" checked />
+      <span>默认添加当前 URL（在编辑页下载时附加）</span>
+    </label>
+
+    <p id="status" class="status" hidden></p>
+
+    <div class="options-actions">
+      <button type="button" id="reset" class="btn secondary">恢复内置默认</button>
+      <button type="button" id="save" class="primary">保存</button>
+    </div>
+
+    <script src="defaults.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

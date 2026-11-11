@@ -48,7 +48,21 @@ wireChoiceGroup('format-group', 'data-format', (value) => {
   selectedFormatValue = value === 'png' ? 'png' : 'jpg';
 });
 
-updateHint();
+document.getElementById('open-settings').addEventListener('click', () => {
+  chrome.runtime.openOptionsPage();
+});
+
+async function applyUserDefaults() {
+  const settings = await yooLoadUserDefaults();
+  selectedModeValue = settings.mode;
+  selectedFormatValue = settings.imageFormat;
+  yooApplySettingsToForm(settings);
+  updateHint();
+}
+
+applyUserDefaults().catch(() => {
+  updateHint();
+});
 
 captureBtn().addEventListener('click', async () => {
   const btn = captureBtn();
