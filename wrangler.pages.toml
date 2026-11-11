@@ -1,0 +1,7 @@
+# Cloudflare Pages：yoo-screenshot.yoo.im（隐私政策等静态页）
+name = "yoo-screenshot"
+compatibility_date = "2024-11-01"
+pages_build_output_dir = "site"
+
+# 与 tester.yoo.im 等同账号；部署后于 Dashboard 绑定自定义域 yoo-screenshot.yoo.im
+# 或：wrangler pages project add-domain yoo-screenshot yoo-screenshot.yoo.im

@@ -3,7 +3,7 @@
   "name": "Yoo Screenshot",
   "short_name": "Yoo截图",
   "version": "1.0.0",
-  "description": "截取可视区域、整页或选中区域，可选附加当前页面 URL",
+  "description": "截取可视/整页/选区，本地编辑后保存；可选在图片底部附加页面 URL",
   "permissions": [
     "activeTab",
     "scripting",

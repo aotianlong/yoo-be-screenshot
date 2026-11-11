@@ -21,3 +21,11 @@ Chrome / Edge（Manifest V3）浏览器截图扩展：可视区域、整页滚�
 ## 开发
 
 本项目为纯静态扩展，无需构建步骤。
+
+## 发布到 Chrome 网上应用店
+
+1. 阅读并补全根目录 [CHROMEWEBSTORE.md](CHROMEWEBSTORE.md)（联系方式、隐私政策 URL）。
+2. 隐私政策公网地址：**https://yoo-screenshot.yoo.im/privacy/**（源码在 `site/privacy/`，部署：`./scripts/deploy-privacy-site.sh`）。
+3. 准备至少一张 **1280×800** 商店截图。
+4. 打包：`chmod +x scripts/package-cws.sh && ./scripts/package-cws.sh`
+5. 在 [Chrome 开发者信息中心](https://chrome.google.com/webstore/devconsole) 上传 `dist/yoo-screenshot-v*.zip`。
