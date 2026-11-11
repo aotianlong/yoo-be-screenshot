@@ -4,8 +4,15 @@
   "short_name": "Yoo截图",
   "version": "1.0.0",
   "description": "截取可视区域、整页或选中区域，可选附加当前页面 URL",
-  "permissions": ["activeTab", "scripting", "tabs", "downloads"],
-  "host_permissions": ["<all_urls>"],
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "tabs",
+    "downloads"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "action": {
     "default_title": "Yoo Screenshot",
     "default_popup": "popup.html",
@@ -22,5 +29,6 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  }
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAw+n5u3zBA0+geVrKPIBh5dtmDj7yz61iELXVh/0Ik/WHYsLt9EhcnJ5tkSHlV5TTvmKQX2tKLEr+snz9I9CROnc4uU0kJbz9MccOGngbEdz6hDMhP3fngMKuxMosDkiEk4bTnvmDGLtPVlNss/0H2AuA8ENUbqhwz9KXkBeK3DPIWqqryKUzbDFHcs5Dv4JNIl5RoS5hE9js3NbASe1S9NBA4mcpxSStUnQzD3tFmSyUDwJv5IzdCFTj5of8AcvRB500LhkH9ybu9POK+maidrxHRqpr5K9oRfSQfTAqBbnUXHw3+Q50y1Iy5oxhe72IpP39UUjyWzlmIpAOGBDI+wIDAQAB"
 }
