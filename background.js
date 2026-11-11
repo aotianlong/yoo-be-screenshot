@@ -1,10 +1,12 @@
 const CAPTURE_FILE = 'content/capture.js';
 const OFFSCREEN_PATH = 'offscreen.html';
 const JPEG_QUALITY = 0.92;
-const CAPTURE_MIN_GAP_MS = 620;
+const CAPTURE_WINDOW_MS = 1000;
+const CAPTURE_MAX_PER_WINDOW = 1;
+const CAPTURE_RETRY_BASE_MS = 1300;
 let creatingOffscreen;
 let captureQueue = Promise.resolve();
-let lastCaptureAt = 0;
+const captureCallTimes = [];
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -12,6 +14,29 @@ function sleep(ms) {
 
 function isCaptureQuotaError(message) {
   return /MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND|quota/i.test(message || '');
+}
+
+function pruneCaptureCallTimes(now) {
+  while (captureCallTimes.length && captureCallTimes[0] <= now - CAPTURE_WINDOW_MS) {
+    captureCallTimes.shift();
+  }
+}
+
+async function acquireCaptureSlot() {
+  for (;;) {
+    const now = Date.now();
+    pruneCaptureCallTimes(now);
+    if (captureCallTimes.length < CAPTURE_MAX_PER_WINDOW) {
+      captureCallTimes.push(now);
+      return;
+    }
+    const waitMs = captureCallTimes[0] + CAPTURE_WINDOW_MS - now + 100;
+    await sleep(Math.max(waitMs, 250));
+  }
+}
+
+function resetCaptureQuotaWindow() {
+  captureCallTimes.length = 0;
 }
 
 function normalizeFormat(imageFormat) {
@@ -210,19 +235,14 @@ async function captureVisible(windowId, imageFormat) {
 
 async function captureVisibleThrottled(windowId, imageFormat) {
   const task = async () => {
-    const gap = Date.now() - lastCaptureAt;
-    if (gap < CAPTURE_MIN_GAP_MS) {
-      await sleep(CAPTURE_MIN_GAP_MS - gap);
-    }
-
-    for (let attempt = 0; attempt < 6; attempt++) {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      await acquireCaptureSlot();
       try {
-        const dataUrl = await captureVisible(windowId, imageFormat);
-        lastCaptureAt = Date.now();
-        return dataUrl;
+        return await captureVisible(windowId, imageFormat);
       } catch (err) {
-        if (isCaptureQuotaError(err.message) && attempt < 5) {
-          await sleep(CAPTURE_MIN_GAP_MS * (attempt + 1));
+        if (isCaptureQuotaError(err.message) && attempt < 7) {
+          resetCaptureQuotaWindow();
+          await sleep(CAPTURE_RETRY_BASE_MS * (attempt + 1));
           continue;
         }
         throw err;

@@ -98,6 +98,7 @@
     try {
       while (scrollY < totalHeight - 1 && steps < maxSteps) {
         await scrollToAndWait(scrollY);
+        await sleep(300);
         const dataUrl = await requestVisibleCapture(fmt);
         tiles.push({ scrollY: window.scrollY, dataUrl });
         if (window.scrollY + viewportHeight >= totalHeight - 1) {
