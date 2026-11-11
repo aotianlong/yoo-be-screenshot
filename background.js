@@ -1,7 +1,18 @@
 const CAPTURE_FILE = 'content/capture.js';
 const OFFSCREEN_PATH = 'offscreen.html';
 const JPEG_QUALITY = 0.92;
+const CAPTURE_MIN_GAP_MS = 620;
 let creatingOffscreen;
+let captureQueue = Promise.resolve();
+let lastCaptureAt = 0;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isCaptureQuotaError(message) {
+  return /MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND|quota/i.test(message || '');
+}
 
 function normalizeFormat(imageFormat) {
   return imageFormat === 'png' ? 'png' : 'jpg';
@@ -149,7 +160,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message?.type === 'CAPTURE_VISIBLE_TAB') {
     const windowId = sender.tab?.windowId;
-    captureVisible(windowId, message.imageFormat)
+    captureVisibleThrottled(windowId, message.imageFormat)
       .then((dataUrl) => sendResponse({ ok: true, dataUrl }))
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
@@ -197,6 +208,37 @@ async function captureVisible(windowId, imageFormat) {
   });
 }
 
+async function captureVisibleThrottled(windowId, imageFormat) {
+  const task = async () => {
+    const gap = Date.now() - lastCaptureAt;
+    if (gap < CAPTURE_MIN_GAP_MS) {
+      await sleep(CAPTURE_MIN_GAP_MS - gap);
+    }
+
+    for (let attempt = 0; attempt < 6; attempt++) {
+      try {
+        const dataUrl = await captureVisible(windowId, imageFormat);
+        lastCaptureAt = Date.now();
+        return dataUrl;
+      } catch (err) {
+        if (isCaptureQuotaError(err.message) && attempt < 5) {
+          await sleep(CAPTURE_MIN_GAP_MS * (attempt + 1));
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw new Error('captureVisibleTab 调用过于频繁');
+  };
+
+  const result = captureQueue.then(task, task);
+  captureQueue = result.then(
+    () => {},
+    () => {}
+  );
+  return result;
+}
+
 async function injectCaptureScript(tabId) {
   await chrome.scripting.executeScript({
     target: { tabId },
@@ -217,7 +259,7 @@ async function runCapture({ tabId, mode, addUrl, pageUrl, pageTitle, imageFormat
   };
 
   if (mode === 'visible') {
-    const dataUrl = await captureVisible(windowId, fmt);
+    const dataUrl = await captureVisibleThrottled(windowId, fmt);
     await saveImage(dataUrl, meta);
     return { ok: true };
   }
@@ -252,7 +294,7 @@ async function runCapture({ tabId, mode, addUrl, pageUrl, pageTitle, imageFormat
       throw new Error('未获取选区');
     }
 
-    const dataUrl = await captureVisible(windowId, fmt);
+    const dataUrl = await captureVisibleThrottled(windowId, fmt);
     const cropped = await cropDataUrl(dataUrl, payload.rect, payload.devicePixelRatio || 1, fmt);
     await saveImage(cropped, meta);
     return { ok: true };
