@@ -18,6 +18,8 @@ zip -r "$OUT" . \
   -x "skills-lock.json" \
   -x "external-extensions.json" \
   -x "scripts/*" \
+  -x "site/*" \
+  -x "wrangler.pages.toml" \
   -x ".*" \
   -x "**/.DS_Store" \
   -x "**/__MACOSX/*"
