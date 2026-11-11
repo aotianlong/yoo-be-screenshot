@@ -1,8 +1,125 @@
 const CAPTURE_FILE = 'content/capture.js';
+const OFFSCREEN_PATH = 'offscreen.html';
+const JPEG_QUALITY = 0.92;
+let creatingOffscreen;
+
+function normalizeFormat(imageFormat) {
+  return imageFormat === 'png' ? 'png' : 'jpg';
+}
+
+function formatOptions(imageFormat) {
+  const png = normalizeFormat(imageFormat) === 'png';
+  return {
+    ext: png ? 'png' : 'jpg',
+    mime: png ? 'image/png' : 'image/jpeg',
+    capture: png ? 'png' : 'jpeg',
+    quality: png ? undefined : Math.round(JPEG_QUALITY * 100)
+  };
+}
+
+function formatLocalTimestamp(date = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return (
+    `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-` +
+    `${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`
+  );
+}
+
+function slugifySegment(text, maxLen) {
+  return String(text)
+    .trim()
+    .replace(/[\s/\\]+/g, '-')
+    .replace(/[^\w\u4e00-\u9fff.-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, maxLen);
+}
+
+function buildFilename({ pageUrl, pageTitle, mode, imageFormat }) {
+  const { ext } = formatOptions(imageFormat);
+  const modeLabel = { visible: 'visible', fullpage: 'fullpage', selection: 'region' }[mode] || 'shot';
+  const ts = formatLocalTimestamp();
+
+  let slug = 'screenshot';
+  try {
+    const u = new URL(pageUrl);
+    const host = slugifySegment(u.hostname, 40) || 'page';
+    const port = u.port ? `-${u.port}` : '';
+    let path = slugifySegment(u.pathname.replace(/^\/+|\/+$/g, '').split('/').join('-'), 40);
+    if (!path && pageTitle) {
+      path = slugifySegment(pageTitle, 40);
+    }
+    slug = slugifySegment(`${host}${port}${path ? `-${path}` : ''}`, 72) || host;
+  } catch {
+    if (pageTitle) {
+      slug = slugifySegment(pageTitle, 48) || slug;
+    }
+  }
+
+  let name = `yoo-${slug}-${modeLabel}-${ts}.${ext}`;
+  name = name.replace(/[/\\?%*:|"<>]/g, '-').replace(/\s+/g, '-');
+  return name.slice(0, 180) || `yoo-screenshot-${ts}.${ext}`;
+}
+
+async function ensureOffscreenDocument() {
+  const url = chrome.runtime.getURL(OFFSCREEN_PATH);
+  if (chrome.runtime.getContexts) {
+    const existing = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT'],
+      documentUrls: [url]
+    });
+    if (existing.length > 0) {
+      return;
+    }
+  }
+  if (creatingOffscreen) {
+    await creatingOffscreen;
+    return;
+  }
+  try {
+    creatingOffscreen = chrome.offscreen.createDocument({
+      url: OFFSCREEN_PATH,
+      reasons: ['BLOBS'],
+      justification: '创建 Blob URL，以便下载时使用自定义文件名'
+    });
+    await creatingOffscreen;
+  } catch (err) {
+    const duplicate =
+      err?.message?.includes('Only a single offscreen') ||
+      err?.message?.includes('already exists');
+    if (!duplicate) {
+      throw err;
+    }
+  } finally {
+    creatingOffscreen = null;
+  }
+}
+
+async function downloadViaOffscreen(dataUrl, filename) {
+  await ensureOffscreenDocument();
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ type: 'YOO_OFFSCREEN_DOWNLOAD', dataUrl, filename }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      if (!response?.ok) {
+        reject(new Error(response?.error || '下载失败'));
+        return;
+      }
+      resolve(response.downloadId);
+    });
+  });
+}
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === 'YOO_OFFSCREEN_DOWNLOAD') {
+    return;
+  }
+
   if (message?.type === 'CAPTURE_VISIBLE_TAB') {
-    captureVisible()
+    const windowId = sender.tab?.windowId;
+    captureVisible(windowId, message.imageFormat)
       .then((dataUrl) => sendResponse({ ok: true, dataUrl }))
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
@@ -29,9 +146,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-async function captureVisible(windowId) {
+async function captureVisible(windowId, imageFormat) {
+  const { capture, quality } = formatOptions(imageFormat);
+  const options = { format: capture };
+  if (quality !== undefined) {
+    options.quality = quality;
+  }
   return new Promise((resolve, reject) => {
-    chrome.tabs.captureVisibleTab(windowId ?? null, { format: 'png' }, (dataUrl) => {
+    chrome.tabs.captureVisibleTab(windowId ?? null, options, (dataUrl) => {
       if (chrome.runtime.lastError) {
         reject(new Error(chrome.runtime.lastError.message));
         return;
@@ -52,13 +174,21 @@ async function injectCaptureScript(tabId) {
   });
 }
 
-async function runCapture({ tabId, mode, addUrl, pageUrl }) {
+async function runCapture({ tabId, mode, addUrl, pageUrl, pageTitle, imageFormat }) {
+  const fmt = normalizeFormat(imageFormat);
   const tab = await chrome.tabs.get(tabId);
   const windowId = tab.windowId;
+  const meta = {
+    addUrl,
+    pageUrl,
+    pageTitle: pageTitle || tab.title || '',
+    mode,
+    imageFormat: fmt
+  };
 
   if (mode === 'visible') {
-    const dataUrl = await captureVisible(windowId);
-    await saveImage(dataUrl, { addUrl, pageUrl, mode });
+    const dataUrl = await captureVisible(windowId, fmt);
+    await saveImage(dataUrl, meta);
     return { ok: true };
   }
 
@@ -67,10 +197,10 @@ async function runCapture({ tabId, mode, addUrl, pageUrl }) {
   if (mode === 'fullpage') {
     const [result] = await chrome.scripting.executeScript({
       target: { tabId },
-      func: (addUrl, pageUrl) => {
-        return window.__yooScreenshotRunFullPage(addUrl, pageUrl);
+      func: (addUrl, pageUrl, fmt) => {
+        return window.__yooScreenshotRunFullPage(addUrl, pageUrl, fmt);
       },
-      args: [addUrl, pageUrl]
+      args: [addUrl, pageUrl, fmt]
     });
     if (result?.result?.error) {
       throw new Error(result.result.error);
@@ -95,9 +225,9 @@ async function runCapture({ tabId, mode, addUrl, pageUrl }) {
       throw new Error('未获取选区');
     }
 
-    const dataUrl = await captureVisible(windowId);
-    const cropped = await cropDataUrl(dataUrl, payload.rect, payload.devicePixelRatio || 1);
-    await saveImage(cropped, { addUrl, pageUrl, mode });
+    const dataUrl = await captureVisible(windowId, fmt);
+    const cropped = await cropDataUrl(dataUrl, payload.rect, payload.devicePixelRatio || 1, fmt);
+    await saveImage(cropped, meta);
     return { ok: true };
   }
 
@@ -105,11 +235,16 @@ async function runCapture({ tabId, mode, addUrl, pageUrl }) {
 }
 
 async function finishAndDownload(payload) {
-  const { dataUrl, addUrl, pageUrl, mode } = payload;
-  await saveImage(dataUrl, { addUrl, pageUrl, mode });
+  await saveImage(payload.dataUrl, {
+    addUrl: payload.addUrl,
+    pageUrl: payload.pageUrl,
+    pageTitle: payload.pageTitle || '',
+    mode: payload.mode,
+    imageFormat: normalizeFormat(payload.imageFormat)
+  });
 }
 
-async function cropDataUrl(dataUrl, rect, dpr) {
+async function cropDataUrl(dataUrl, rect, dpr, imageFormat) {
   const response = await fetch(dataUrl);
   const blob = await response.blob();
   const bitmap = await createImageBitmap(blob);
@@ -123,11 +258,12 @@ async function cropDataUrl(dataUrl, rect, dpr) {
   const ctx = canvas.getContext('2d');
   ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, sw, sh);
 
-  const outBlob = await canvas.convertToBlob({ type: 'image/png' });
+  const { mime, quality } = blobExportOptions(imageFormat);
+  const outBlob = await canvas.convertToBlob({ type: mime, quality });
   return blobToDataUrl(outBlob);
 }
 
-async function drawUrlBar(dataUrl, pageUrl) {
+async function drawUrlBar(dataUrl, pageUrl, imageFormat) {
   const response = await fetch(dataUrl);
   const blob = await response.blob();
   const bitmap = await createImageBitmap(blob);
@@ -143,37 +279,46 @@ async function drawUrlBar(dataUrl, pageUrl) {
   const text = pageUrl.length > 120 ? `${pageUrl.slice(0, 117)}…` : pageUrl;
   ctx.fillText(text, 12, bitmap.height + barHeight * 0.68);
 
-  const outBlob = await canvas.convertToBlob({ type: 'image/png' });
+  const { mime, quality } = blobExportOptions(imageFormat);
+  const outBlob = await canvas.convertToBlob({ type: mime, quality });
   return blobToDataUrl(outBlob);
 }
 
-async function saveImage(dataUrl, { addUrl, pageUrl, mode }) {
+function blobExportOptions(imageFormat) {
+  const png = normalizeFormat(imageFormat) === 'png';
+  return {
+    mime: png ? 'image/png' : 'image/jpeg',
+    quality: png ? undefined : JPEG_QUALITY
+  };
+}
+
+async function saveImage(dataUrl, { addUrl, pageUrl, pageTitle, mode, imageFormat }) {
+  const fmt = normalizeFormat(imageFormat);
   let finalUrl = dataUrl;
   if (addUrl && pageUrl) {
-    finalUrl = await drawUrlBar(dataUrl, pageUrl);
+    finalUrl = await drawUrlBar(dataUrl, pageUrl, fmt);
+  } else {
+    finalUrl = await reencodeDataUrl(finalUrl, fmt);
   }
 
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const modeLabel = { visible: 'visible', fullpage: 'full', selection: 'region' }[mode] || 'shot';
-  const filename = `yoo-screenshot-${modeLabel}-${stamp}.png`;
+  const filename = buildFilename({ pageUrl, pageTitle, mode, imageFormat: fmt });
+  await downloadViaOffscreen(finalUrl, filename);
+}
 
-  const blob = await (await fetch(finalUrl)).blob();
-  const url = URL.createObjectURL(blob);
-
-  await new Promise((resolve, reject) => {
-    chrome.downloads.download({ url, filename, saveAs: false }, (downloadId) => {
-      URL.revokeObjectURL(url);
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-        return;
-      }
-      if (downloadId === undefined) {
-        reject(new Error('下载失败'));
-        return;
-      }
-      resolve(downloadId);
-    });
-  });
+async function reencodeDataUrl(dataUrl, imageFormat) {
+  const { mime } = formatOptions(imageFormat);
+  if (dataUrl.startsWith(`data:${mime}`)) {
+    return dataUrl;
+  }
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+  const bitmap = await createImageBitmap(blob);
+  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(bitmap, 0, 0);
+  const { mime: outMime, quality } = blobExportOptions(imageFormat);
+  const outBlob = await canvas.convertToBlob({ type: outMime, quality });
+  return blobToDataUrl(outBlob);
 }
 
 function blobToDataUrl(blob) {

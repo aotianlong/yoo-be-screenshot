@@ -4,9 +4,16 @@
   }
   window.__yooScreenshotLoaded = true;
 
-  function requestVisibleCapture() {
+  function exportCanvasDataUrl(canvas, imageFormat) {
+    if (imageFormat === 'png') {
+      return canvas.toDataURL('image/png');
+    }
+    return canvas.toDataURL('image/jpeg', 0.92);
+  }
+
+  function requestVisibleCapture(imageFormat) {
     return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ type: 'CAPTURE_VISIBLE_TAB' }, (response) => {
+      chrome.runtime.sendMessage({ type: 'CAPTURE_VISIBLE_TAB', imageFormat }, (response) => {
         if (chrome.runtime.lastError) {
           reject(new Error(chrome.runtime.lastError.message));
           return;
@@ -24,7 +31,7 @@
     return new Promise((r) => setTimeout(r, ms));
   }
 
-  async function stitchTiles(tiles, totalWidth, totalHeight, viewportWidth, viewportHeight, dpr) {
+  async function stitchTiles(tiles, totalWidth, totalHeight, viewportWidth, viewportHeight, dpr, imageFormat) {
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(totalWidth * dpr);
     canvas.height = Math.round(totalHeight * dpr);
@@ -55,10 +62,11 @@
       );
     }
 
-    return canvas.toDataURL('image/png');
+    return exportCanvasDataUrl(canvas, imageFormat);
   }
 
-  window.__yooScreenshotRunFullPage = async function (addUrl, pageUrl) {
+  window.__yooScreenshotRunFullPage = async function (addUrl, pageUrl, imageFormat) {
+    const fmt = imageFormat === 'png' ? 'png' : 'jpg';
     const html = document.documentElement;
     const body = document.body;
     const totalWidth = Math.max(
@@ -90,7 +98,7 @@
       while (scrollY < totalHeight && steps < maxSteps) {
         window.scrollTo(0, scrollY);
         await sleep(200);
-        const dataUrl = await requestVisibleCapture();
+        const dataUrl = await requestVisibleCapture(fmt);
         tiles.push({ scrollY, dataUrl });
         if (scrollY + viewportHeight >= totalHeight) {
           break;
@@ -105,14 +113,15 @@
         totalHeight,
         viewportWidth,
         viewportHeight,
-        dpr
+        dpr,
+        fmt
       );
 
       await new Promise((resolve, reject) => {
         chrome.runtime.sendMessage(
           {
             type: 'FINISH_CAPTURE',
-            payload: { dataUrl, addUrl, pageUrl, mode: 'fullpage' }
+            payload: { dataUrl, addUrl, pageUrl, pageTitle: document.title, mode: 'fullpage', imageFormat: fmt }
           },
           (response) => {
             if (chrome.runtime.lastError) {

@@ -9,6 +9,11 @@ function selectedMode() {
   return checked ? checked.value : 'visible';
 }
 
+function selectedFormat() {
+  const checked = document.querySelector('input[name="format"]:checked');
+  return checked?.value === 'png' ? 'png' : 'jpg';
+}
+
 function setStatus(text, isError = false) {
   const el = statusEl();
   if (!text) {
@@ -55,7 +60,9 @@ captureBtn().addEventListener('click', async () => {
       tabId: tab.id,
       mode,
       addUrl: addUrlEl().checked,
-      pageUrl: tab.url || ''
+      pageUrl: tab.url || '',
+      pageTitle: tab.title || '',
+      imageFormat: selectedFormat()
     };
 
     if (mode === 'selection' || mode === 'fullpage') {
