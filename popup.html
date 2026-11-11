@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Yoo Screenshot</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="header">
+      <h1 class="title">Yoo 截图</h1>
+    </header>
+
+    <fieldset class="modes">
+      <legend>截图方式</legend>
+      <label class="option">
+        <input type="radio" name="mode" value="visible" checked />
+        <span>截取可视区域</span>
+      </label>
+      <label class="option">
+        <input type="radio" name="mode" value="fullpage" />
+        <span>截取整页</span>
+      </label>
+      <label class="option">
+        <input type="radio" name="mode" value="selection" />
+        <span>截取选中区域</span>
+      </label>
+    </fieldset>
+
+    <label class="option checkbox-row">
+      <input type="checkbox" id="add-url" checked />
+      <span>添加当前 URL</span>
+    </label>
+
+    <p id="status" class="status" hidden></p>
+
+    <button type="button" id="capture" class="primary">开始截图</button>
+
+    <p class="hint" id="hint"></p>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
