@@ -299,6 +299,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
+
 });
 
 async function captureVisible(windowId, imageFormat) {
@@ -478,7 +479,8 @@ async function saveImage(dataUrl, { addUrl, pageUrl, pageTitle, mode, imageForma
     pageUrl: pageUrl || '',
     pageTitle: pageTitle || '',
     mode: mode || 'visible',
-    imageFormat: fmt
+    imageFormat: fmt,
+    downloadFilename: buildFilename({ pageUrl, pageTitle, mode, imageFormat: fmt })
   });
 }
 
