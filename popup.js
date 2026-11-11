@@ -21,7 +21,7 @@ function setStatus(text, isError = false) {
 
 function updateHint() {
   const hints = {
-    visible: '立即保存当前标签页中可见的部分。',
+    visible: '截取后在编辑页中预览，可裁剪、标注后再下载。',
     fullpage: '将自动滚动并拼接整页，页面较长时请稍候。',
     selection: '将在页面上拖拽框选区域；按 Esc 可取消。'
   };
@@ -93,7 +93,7 @@ captureBtn().addEventListener('click', async () => {
       throw new Error(response?.error || '截图失败');
     }
 
-    setStatus('已保存截图');
+    setStatus('已打开编辑页');
   } catch (err) {
     setStatus(err.message || String(err), true);
   } finally {

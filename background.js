@@ -1,12 +1,67 @@
 const CAPTURE_FILE = 'content/capture.js';
 const OFFSCREEN_PATH = 'offscreen.html';
+const EDITOR_PATH = 'editor.html';
 const JPEG_QUALITY = 0.92;
+const EDIT_SESSION_TTL_MS = 60 * 60 * 1000;
 const CAPTURE_WINDOW_MS = 1000;
 const CAPTURE_MAX_PER_WINDOW = 1;
 const CAPTURE_RETRY_BASE_MS = 1300;
 let creatingOffscreen;
 let captureQueue = Promise.resolve();
 const captureCallTimes = [];
+/** @type {Map<string, { dataUrl: string, meta: object }>} */
+const editSessions = new Map();
+
+function editSessionKey(sessionId) {
+  return `yoo-edit:${sessionId}`;
+}
+
+function pruneEditSessions() {
+  const now = Date.now();
+  for (const [id, entry] of editSessions) {
+    if (now - (entry.createdAt || 0) > EDIT_SESSION_TTL_MS) {
+      editSessions.delete(id);
+      chrome.storage.session.remove(editSessionKey(id)).catch(() => {});
+    }
+  }
+}
+
+async function storeEditSession(sessionId, dataUrl, meta) {
+  const payload = { dataUrl, meta, createdAt: Date.now() };
+  editSessions.set(sessionId, payload);
+  try {
+    await chrome.storage.session.set({ [editSessionKey(sessionId)]: payload });
+  } catch (err) {
+    console.warn('[yoo-be-screenshot] session storage unavailable, using memory only', err);
+  }
+}
+
+async function getEditSession(sessionId) {
+  pruneEditSessions();
+  const mem = editSessions.get(sessionId);
+  if (mem) {
+    return mem;
+  }
+  const stored = await chrome.storage.session.get(editSessionKey(sessionId));
+  const entry = stored[editSessionKey(sessionId)];
+  if (entry) {
+    editSessions.set(sessionId, entry);
+    return entry;
+  }
+  return null;
+}
+
+async function removeEditSession(sessionId) {
+  editSessions.delete(sessionId);
+  await chrome.storage.session.remove(editSessionKey(sessionId)).catch(() => {});
+}
+
+async function openEditorTab(dataUrl, meta) {
+  const sessionId = crypto.randomUUID();
+  await storeEditSession(sessionId, dataUrl, meta);
+  const url = `${chrome.runtime.getURL(EDITOR_PATH)}?session=${encodeURIComponent(sessionId)}`;
+  await chrome.tabs.create({ url, active: true });
+}
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -210,6 +265,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
+
+  if (message?.type === 'EDITOR_LOAD_SESSION') {
+    getEditSession(message.sessionId)
+      .then((entry) => {
+        if (!entry?.dataUrl) {
+          sendResponse({ ok: false, error: '编辑会话已过期或不存在' });
+          return;
+        }
+        sendResponse({ ok: true, dataUrl: entry.dataUrl, meta: entry.meta });
+      })
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+
+  if (message?.type === 'EDITOR_DOWNLOAD') {
+    finishEditorDownload(message.sessionId, message.dataUrl)
+      .then(() => sendResponse({ ok: true }))
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
 });
 
 async function captureVisible(windowId, imageFormat) {
@@ -383,13 +458,29 @@ function blobExportOptions(imageFormat) {
 
 async function saveImage(dataUrl, { addUrl, pageUrl, pageTitle, mode, imageFormat }) {
   const fmt = normalizeFormat(imageFormat);
+  const finalUrl = await reencodeDataUrl(dataUrl, fmt);
+  await openEditorTab(finalUrl, {
+    addUrl: Boolean(addUrl && pageUrl),
+    pageUrl: pageUrl || '',
+    pageTitle: pageTitle || '',
+    mode: mode || 'visible',
+    imageFormat: fmt
+  });
+}
+
+async function finishEditorDownload(sessionId, dataUrl) {
+  const entry = await getEditSession(sessionId);
+  if (!entry?.meta) {
+    throw new Error('编辑会话已过期');
+  }
+  const { addUrl, pageUrl, pageTitle, mode, imageFormat } = entry.meta;
+  const fmt = normalizeFormat(imageFormat);
   let finalUrl = dataUrl;
   if (addUrl && pageUrl) {
     finalUrl = await drawUrlBar(dataUrl, pageUrl, fmt);
   } else {
     finalUrl = await reencodeDataUrl(finalUrl, fmt);
   }
-
   const filename = buildFilename({ pageUrl, pageTitle, mode, imageFormat: fmt });
   await downloadViaOffscreen(finalUrl, filename);
 }

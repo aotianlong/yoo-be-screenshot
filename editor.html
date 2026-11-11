@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Yoo 截图 · 编辑</title>
+    <link rel="stylesheet" href="editor.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="back" href="#" id="back-none" hidden></a>
+      <h1 class="topbar-title">编辑截图</h1>
+      <span class="topbar-meta" id="meta-label" hidden></span>
+    </header>
+
+    <div class="toolbar" role="toolbar" aria-label="编辑工具">
+      <div class="tool-group" role="group" aria-label="绘图工具">
+        <button type="button" class="tool is-active" data-tool="pointer" title="选择">选择</button>
+        <button type="button" class="tool" data-tool="crop" title="裁剪">裁剪</button>
+        <button type="button" class="tool" data-tool="brush" title="画笔">画笔</button>
+        <button type="button" class="tool" data-tool="text" title="文字">文字</button>
+      </div>
+
+      <p class="toolbar-sep" aria-hidden="true"></p>
+
+      <div class="tool-group">
+        <button type="button" class="tool icon-tool" id="rotate-ccw" title="逆时针旋转 90°">↺</button>
+        <button type="button" class="tool icon-tool" id="rotate-cw" title="顺时针旋转 90°">↻</button>
+      </div>
+
+      <p class="toolbar-sep" aria-hidden="true"></p>
+
+      <div class="tool-group">
+        <button type="button" class="tool icon-tool" id="undo" title="撤销 (⌘Z)" disabled>撤销</button>
+        <button type="button" class="tool icon-tool" id="redo" title="重做 (⇧⌘Z)" disabled>重做</button>
+      </div>
+
+      <div class="tool-options" id="brush-options" hidden>
+        <label class="opt">
+          <span>颜色</span>
+          <input type="color" id="brush-color" value="#ef4444" />
+        </label>
+        <label class="opt">
+          <span>粗细</span>
+          <input type="range" id="brush-size" min="1" max="48" value="4" />
+        </label>
+      </div>
+
+      <div class="tool-options" id="text-options" hidden>
+        <label class="opt">
+          <span>颜色</span>
+          <input type="color" id="text-color" value="#1a1a1a" />
+        </label>
+        <label class="opt">
+          <span>字号</span>
+          <input type="range" id="text-size" min="12" max="96" value="24" />
+        </label>
+      </div>
+
+      <div class="toolbar-spacer"></div>
+
+      <div class="tool-group actions">
+        <button type="button" class="btn secondary" id="cancel-crop" hidden>取消裁剪</button>
+        <button type="button" class="btn secondary" id="apply-crop" hidden>应用裁剪</button>
+        <button type="button" class="btn secondary" id="copy-btn">复制</button>
+        <button type="button" class="btn primary" id="download-btn">下载</button>
+      </div>
+    </div>
+
+    <main class="stage" id="stage">
+      <div class="canvas-wrap" id="canvas-wrap" hidden>
+        <canvas id="canvas"></canvas>
+        <div class="crop-layer" id="crop-layer" hidden>
+          <div class="crop-shade crop-shade--top" id="crop-top"></div>
+          <div class="crop-shade crop-shade--left" id="crop-left"></div>
+          <div class="crop-shade crop-shade--right" id="crop-right"></div>
+          <div class="crop-shade crop-shade--bottom" id="crop-bottom"></div>
+          <div class="crop-box" id="crop-box">
+            <span class="crop-handle nw"></span>
+            <span class="crop-handle ne"></span>
+            <span class="crop-handle sw"></span>
+            <span class="crop-handle se"></span>
+          </div>
+        </div>
+      </div>
+      <p class="loading" id="loading">正在加载截图…</p>
+      <p class="error" id="load-error" hidden></p>
+    </main>
+
+    <div class="text-popover" id="text-popover" hidden>
+      <input type="text" id="text-input" placeholder="输入文字，Enter 确认" maxlength="500" />
+      <button type="button" class="btn secondary sm" id="text-cancel">取消</button>
+      <button type="button" class="btn primary sm" id="text-confirm">确定</button>
+    </div>
+
+    <script src="editor.js"></script>
+  </body>
+</html>
